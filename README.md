@@ -66,6 +66,7 @@ flutter test
 
 ## Documentation
 
+- [RUNNING_AND_TESTING.md](documentation/RUNNING_AND_TESTING.md) — Complete Guide on Running, Testing, and Debugging
 - [ARCHITECTURE.md](documentation/ARCHITECTURE.md) — System architecture and design decisions
 - [PROJECT_SETUP.md](documentation/PROJECT_SETUP.md) — Environment setup guide
 - [DATABASE.md](documentation/DATABASE.md) — Database schema and ERD

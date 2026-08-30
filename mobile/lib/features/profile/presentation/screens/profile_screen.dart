@@ -5,6 +5,7 @@ import '../../../../core/theme/colors.dart';
 import '../../../../core/widgets/common_widgets.dart';
 import '../../../../core/auth/auth_service.dart';
 import '../providers/profile_providers.dart';
+import '../widgets/paywall_sheet.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -151,7 +152,14 @@ class ProfileScreen extends ConsumerWidget {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () {},
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (ctx) => const PaywallSheet(),
+                          );
+                        },
                         borderRadius: BorderRadius.circular(16),
                         child: Padding(
                           padding: const EdgeInsets.all(20),

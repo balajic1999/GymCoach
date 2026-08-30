@@ -1,299 +1,448 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/widgets/common_widgets.dart';
+import '../providers/exercise_providers.dart';
 
-class ExerciseDetailScreen extends StatefulWidget {
+class ExerciseDetailScreen extends ConsumerStatefulWidget {
   final String exerciseId;
 
   const ExerciseDetailScreen({super.key, required this.exerciseId});
 
   @override
-  State<ExerciseDetailScreen> createState() => _ExerciseDetailScreenState();
+  ConsumerState<ExerciseDetailScreen> createState() =>
+      _ExerciseDetailScreenState();
 }
 
-class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
+class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
-  bool _isFavorited = false;
-
-  // Placeholder exercise data — will be replaced with Supabase data
-  String get _exerciseName {
-    return widget.exerciseId
-        .replaceAll('-', ' ')
-        .replaceAll('placeholder ', '')
-        .split(' ')
-        .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
-  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          // 3D Viewer area (placeholder — will be flutter_3d_controller)
-          SliverAppBar(
-            expandedHeight: 360,
-            pinned: true,
-            backgroundColor: AppColors.surfaceDark,
-            leading: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceDark.withValues(alpha: 0.7),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.arrow_back_rounded, size: 20),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            actions: [
-              IconButton(
-                icon: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceDark.withValues(alpha: 0.7),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _isFavorited ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
-                    size: 20,
-                    color: _isFavorited ? AppColors.error : null,
-                  ),
-                ),
-                onPressed: () => setState(() => _isFavorited = !_isFavorited),
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                color: AppColors.surfaceDark,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 60),
-                    // 3D Model Placeholder
-                    Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          colors: [
-                            AppColors.primary.withValues(alpha: 0.15),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.view_in_ar_rounded,
-                        size: 80,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '3D Model — Phase 4',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.textTertiaryDark,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+    final exerciseAsync = ref.watch(exerciseDetailProvider(widget.exerciseId));
+    final favorites = ref.watch(favoritesProvider);
 
-          // Playback Controls
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              color: AppColors.surfaceDark,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+    return exerciseAsync.when(
+      loading: () => Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stackTrace) => Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded,
+                  size: 64, color: AppColors.textTertiaryDark),
+              const SizedBox(height: 16),
+              Text('Could not load exercise',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: AppColors.textSecondaryDark,
+                      )),
+            ],
+          ),
+        ),
+      ),
+      data: (exercise) {
+        if (exercise == null) {
+          return Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Restart
-                  IconButton(
-                    icon: const Icon(Icons.replay_rounded),
-                    onPressed: () {},
-                    color: AppColors.textSecondaryDark,
+                  const Icon(Icons.search_off_rounded,
+                      size: 64, color: AppColors.textTertiaryDark),
+                  const SizedBox(height: 16),
+                  Text('Exercise not found',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                color: AppColors.textSecondaryDark,
+                              )),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final isFavorited = favorites.contains(exercise.id);
+
+        return Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              // 3D Viewer area (placeholder — will be flutter_3d_controller)
+              SliverAppBar(
+                expandedHeight: 360,
+                pinned: true,
+                backgroundColor: AppColors.surfaceDark,
+                leading: IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDark.withValues(alpha: 0.7),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.arrow_back_rounded, size: 20),
                   ),
-                  const SizedBox(width: 12),
-                  // Play/Pause
-                  GestureDetector(
-                    onTap: () => setState(() => _isPlaying = !_isPlaying),
-                    child: Container(
-                      width: 52,
-                      height: 52,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                actions: [
+                  IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        gradient: AppColors.gradientPrimary,
+                        color: AppColors.surfaceDark.withValues(alpha: 0.7),
                         shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.4),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
                       ),
                       child: Icon(
-                        _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 28,
+                        isFavorited
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_outline_rounded,
+                        size: 20,
+                        color: isFavorited ? AppColors.error : null,
                       ),
                     ),
+                    onPressed: () =>
+                        ref.read(favoritesProvider.notifier).toggle(exercise.id),
                   ),
-                  const SizedBox(width: 12),
-                  // Speed control
-                  PopupMenuButton<double>(
-                    icon: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceHighDark,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${_playbackSpeed}x',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: AppColors.accent,
+                ],
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    color: AppColors.surfaceDark,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 60),
+                        // 3D Model Placeholder
+                        Container(
+                          width: 200,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              colors: [
+                                AppColors.primary.withValues(alpha: 0.15),
+                                Colors.transparent,
+                              ],
                             ),
-                      ),
+                          ),
+                          child: const Icon(
+                            Icons.view_in_ar_rounded,
+                            size: 80,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '3D Model — Phase 4',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textTertiaryDark,
+                                  ),
+                        ),
+                      ],
                     ),
-                    onSelected: (speed) => setState(() => _playbackSpeed = speed),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: 0.25, child: Text('0.25x')),
-                      const PopupMenuItem(value: 0.5, child: Text('0.5x')),
-                      const PopupMenuItem(value: 1.0, child: Text('1.0x')),
-                      const PopupMenuItem(value: 1.5, child: Text('1.5x')),
+                  ),
+                ),
+              ),
+
+              // Playback Controls
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
+                  color: AppColors.surfaceDark,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.replay_rounded),
+                        onPressed: () {},
+                        color: AppColors.textSecondaryDark,
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _isPlaying = !_isPlaying),
+                        child: Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.gradientPrimary,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    AppColors.primary.withValues(alpha: 0.4),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      PopupMenuButton<double>(
+                        icon: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceHighDark,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${_playbackSpeed}x',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(color: AppColors.accent),
+                          ),
+                        ),
+                        onSelected: (speed) =>
+                            setState(() => _playbackSpeed = speed),
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 0.25, child: Text('0.25x')),
+                          PopupMenuItem(value: 0.5, child: Text('0.5x')),
+                          PopupMenuItem(value: 1.0, child: Text('1.0x')),
+                          PopupMenuItem(value: 1.5, child: Text('1.5x')),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          // Exercise Info
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _exerciseName,
-                    style: Theme.of(context).textTheme.displaySmall,
-                  ).animate().fadeIn(duration: 400.ms),
-                  const SizedBox(height: 12),
-                  // Tags
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+              // Exercise Info
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _DetailTag(label: 'Intermediate', icon: Icons.signal_cellular_alt_rounded, color: AppColors.warning),
-                      _DetailTag(label: 'Barbell', icon: Icons.fitness_center_rounded, color: AppColors.accent),
-                      _DetailTag(label: '3 × 10', icon: Icons.repeat_rounded, color: AppColors.primary),
-                      _DetailTag(label: '60s rest', icon: Icons.timer_rounded, color: AppColors.textSecondaryDark),
+                      Text(
+                        exercise.name,
+                        style: Theme.of(context).textTheme.displaySmall,
+                      ).animate().fadeIn(duration: 400.ms),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _DetailTag(
+                            label: _capitalizeFirst(exercise.difficulty),
+                            icon: Icons.signal_cellular_alt_rounded,
+                            color: _difficultyColor(exercise.difficulty),
+                          ),
+                          ...exercise.equipment.map((eq) => _DetailTag(
+                                label: eq.equipment?.name ?? 'Equipment',
+                                icon: Icons.fitness_center_rounded,
+                                color: AppColors.accent,
+                              )),
+                          _DetailTag(
+                            label:
+                                '${exercise.defaultSets} × ${exercise.defaultReps}',
+                            icon: Icons.repeat_rounded,
+                            color: AppColors.primary,
+                          ),
+                          _DetailTag(
+                            label: '${exercise.defaultRestSeconds}s rest',
+                            icon: Icons.timer_rounded,
+                            color: AppColors.textSecondaryDark,
+                          ),
+                        ],
+                      ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
                     ],
-                  ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
-                ],
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          // Target Muscles
-          SliverToBoxAdapter(
-            child: _Section(
-              title: 'Target Muscles',
-              icon: Icons.accessibility_new_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _MuscleRow(name: 'Quadriceps', role: 'Primary', color: AppColors.muscleLegs),
-                  _MuscleRow(name: 'Glutes', role: 'Primary', color: AppColors.muscleLegs),
-                  _MuscleRow(name: 'Hamstrings', role: 'Secondary', color: AppColors.muscleBack),
-                  _MuscleRow(name: 'Core', role: 'Secondary', color: AppColors.muscleCore),
-                ],
-              ),
-            ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
-          ),
-
-          // Instructions
-          SliverToBoxAdapter(
-            child: _Section(
-              title: 'Instructions',
-              icon: Icons.list_alt_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _InstructionStep(number: 1, text: 'Stand with feet shoulder-width apart, barbell resting on your upper traps.'),
-                  _InstructionStep(number: 2, text: 'Engage your core and keep your chest up. Look forward.'),
-                  _InstructionStep(number: 3, text: 'Push your hips back and bend your knees to lower your body.'),
-                  _InstructionStep(number: 4, text: 'Descend until thighs are at least parallel to the ground.'),
-                  _InstructionStep(number: 5, text: 'Drive through your heels to stand back up to the starting position.'),
-                ],
-              ),
-            ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
-          ),
-
-          // Breathing
-          SliverToBoxAdapter(
-            child: _Section(
-              title: 'Breathing',
-              icon: Icons.air_rounded,
-              child: Text(
-                'Inhale as you lower down. Exhale as you drive up through your heels.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondaryDark,
+              // Description
+              if (exercise.description != null &&
+                  exercise.description!.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _Section(
+                    title: 'About',
+                    icon: Icons.info_outline_rounded,
+                    child: Text(
+                      exercise.description!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondaryDark,
+                          ),
                     ),
-              ),
-            ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
-          ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 150.ms),
+                ),
 
-          // Common Mistakes
-          SliverToBoxAdapter(
-            child: _Section(
-              title: 'Common Mistakes',
-              icon: Icons.warning_amber_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _MistakeItem(text: 'Knees caving inward — keep knees tracking over toes'),
-                  _MistakeItem(text: 'Rounding the lower back — maintain a neutral spine'),
-                  _MistakeItem(text: 'Rising on toes — drive through the full foot'),
-                  _MistakeItem(text: 'Not reaching depth — aim for at least parallel'),
-                ],
-              ),
-            ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
-          ),
+              // Target Muscles
+              if (exercise.muscles.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _Section(
+                    title: 'Target Muscles',
+                    icon: Icons.accessibility_new_rounded,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: exercise.muscles
+                          .map((em) => _MuscleRow(
+                                name: em.muscle?.name ?? 'Unknown',
+                                role: _capitalizeFirst(em.role),
+                                color: _muscleColor(
+                                    em.muscle?.bodyRegion ?? 'upper'),
+                              ))
+                          .toList(),
+                    ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                ),
 
-          // Add to Workout button
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: GradientButton(
-                label: 'Add to Workout',
-                icon: Icons.add_rounded,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Workout system coming in Phase 6')),
-                  );
-                },
-              ),
-            ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
-          ),
+              // Instructions
+              if (exercise.instructions.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _Section(
+                    title: 'Instructions',
+                    icon: Icons.list_alt_rounded,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: exercise.instructions
+                          .asMap()
+                          .entries
+                          .map((e) => _InstructionStep(
+                                number: e.key + 1,
+                                text: e.value,
+                              ))
+                          .toList(),
+                    ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
+                ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 20)),
-        ],
-      ),
+              // Breathing
+              if (exercise.breathing != null &&
+                  exercise.breathing!.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _Section(
+                    title: 'Breathing',
+                    icon: Icons.air_rounded,
+                    child: Text(
+                      exercise.breathing!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondaryDark,
+                          ),
+                    ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
+                ),
+
+              // Common Mistakes
+              if (exercise.commonMistakes.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _Section(
+                    title: 'Common Mistakes',
+                    icon: Icons.warning_amber_rounded,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: exercise.commonMistakes
+                          .map((m) => _MistakeItem(text: m))
+                          .toList(),
+                    ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
+                ),
+
+              // Safety Notes
+              if (exercise.safetyNotes.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _Section(
+                    title: 'Safety Notes',
+                    icon: Icons.health_and_safety_rounded,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: exercise.safetyNotes
+                          .map((s) => _SafetyItem(text: s))
+                          .toList(),
+                    ),
+                  ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
+                ),
+
+              // Add to Workout button
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: GradientButton(
+                    label: 'Add to Workout',
+                    icon: Icons.add_rounded,
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content:
+                                Text('Workout system coming in Phase 6')),
+                      );
+                    },
+                  ),
+                ).animate().fadeIn(duration: 400.ms, delay: 700.ms),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            ],
+          ),
+        );
+      },
     );
   }
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+String _capitalizeFirst(String s) {
+  if (s.isEmpty) return s;
+  return '${s[0].toUpperCase()}${s.substring(1)}';
+}
+
+Color _difficultyColor(String difficulty) {
+  return switch (difficulty.toLowerCase()) {
+    'beginner' => AppColors.success,
+    'intermediate' => AppColors.warning,
+    'advanced' => AppColors.error,
+    _ => AppColors.textSecondaryDark,
+  };
+}
+
+Color _muscleColor(String bodyRegion) {
+  return switch (bodyRegion.toLowerCase()) {
+    'upper' => AppColors.muscleChest,
+    'core' => AppColors.muscleCore,
+    'lower' => AppColors.muscleLegs,
+    _ => AppColors.primary,
+  };
+}
+
+// ── Widgets ─────────────────────────────────────────────────────────────
 
 class _DetailTag extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
 
-  const _DetailTag({required this.label, required this.icon, required this.color});
+  const _DetailTag(
+      {required this.label, required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -311,7 +460,10 @@ class _DetailTag extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+            style: Theme.of(context)
+                .textTheme
+                .labelMedium
+                ?.copyWith(color: color),
           ),
         ],
       ),
@@ -324,7 +476,8 @@ class _Section extends StatelessWidget {
   final IconData icon;
   final Widget child;
 
-  const _Section({required this.title, required this.icon, required this.child});
+  const _Section(
+      {required this.title, required this.icon, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -356,7 +509,8 @@ class _MuscleRow extends StatelessWidget {
   final String role;
   final Color color;
 
-  const _MuscleRow({required this.name, required this.role, required this.color});
+  const _MuscleRow(
+      {required this.name, required this.role, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -374,10 +528,12 @@ class _MuscleRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(name, style: Theme.of(context).textTheme.bodyMedium),
+            child:
+                Text(name, style: Theme.of(context).textTheme.bodyMedium),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: role == 'Primary'
                   ? AppColors.primary.withValues(alpha: 0.15)
@@ -387,7 +543,9 @@ class _MuscleRow extends StatelessWidget {
             child: Text(
               role,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: role == 'Primary' ? AppColors.primary : AppColors.textSecondaryDark,
+                    color: role == 'Primary'
+                        ? AppColors.primary
+                        : AppColors.textSecondaryDark,
                   ),
             ),
           ),
@@ -454,7 +612,36 @@ class _MistakeItem extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.close_rounded, size: 18, color: AppColors.error),
+          const Icon(Icons.close_rounded, size: 18, color: AppColors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondaryDark,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SafetyItem extends StatelessWidget {
+  final String text;
+
+  const _SafetyItem({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.shield_outlined,
+              size: 18, color: AppColors.success),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/widgets/common_widgets.dart';
+import '../../exercises/data/models/exercise.dart';
+import '../../exercises/presentation/providers/exercise_providers.dart';
+import '../../workout/presentation/providers/workout_providers.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final popularExercises = ref.watch(
+      exerciseListProvider(const ExerciseFilterParams()),
+    );
+    final workoutCount = ref.watch(workoutCountProvider);
+    final streak = ref.watch(workoutStreakProvider);
+
     return Scaffold(
       body: SafeArea(
         child: CustomScrollView(
@@ -25,7 +35,10 @@ class HomeScreen extends StatelessWidget {
                       children: [
                         Text(
                           'Welcome back 👋',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
                                 color: AppColors.textSecondaryDark,
                               ),
                         ),
@@ -47,7 +60,8 @@ class HomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
+                              color:
+                                  AppColors.primary.withValues(alpha: 0.3),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -62,7 +76,10 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-              ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0),
+              )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .slideY(begin: -0.1, end: 0),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -86,7 +103,8 @@ class HomeScreen extends StatelessWidget {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.accent.withValues(alpha: 0.15),
+                                color: AppColors.accent
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -103,8 +121,9 @@ class HomeScreen extends StatelessWidget {
                             const SizedBox(height: 12),
                             Text(
                               'Start Your\nWorkout',
-                              style:
-                                  Theme.of(context).textTheme.headlineLarge,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineLarge,
                             ),
                             const SizedBox(height: 8),
                             Text(
@@ -136,12 +155,15 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              ).animate().fadeIn(duration: 500.ms, delay: 100.ms).slideY(begin: 0.1, end: 0),
+              )
+                  .animate()
+                  .fadeIn(duration: 500.ms, delay: 100.ms)
+                  .slideY(begin: 0.1, end: 0),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
-            // Stats Row
+            // Stats Row — wired to providers
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -150,7 +172,11 @@ class HomeScreen extends StatelessWidget {
                     Expanded(
                       child: StatCard(
                         label: 'Workouts',
-                        value: '0',
+                        value: workoutCount.when(
+                          data: (v) => '$v',
+                          loading: () => '–',
+                          error: (error, stackTrace) => '0',
+                        ),
                         icon: Icons.fitness_center_rounded,
                         iconColor: AppColors.accent,
                       ),
@@ -159,19 +185,26 @@ class HomeScreen extends StatelessWidget {
                     Expanded(
                       child: StatCard(
                         label: 'Streak',
-                        value: '0 days',
+                        value: streak.when(
+                          data: (v) => '$v day${v != 1 ? 's' : ''}',
+                          loading: () => '–',
+                          error: (error, stackTrace) => '0 days',
+                        ),
                         icon: Icons.local_fire_department_rounded,
                         iconColor: AppColors.warning,
                       ),
                     ),
                   ],
                 ),
-              ).animate().fadeIn(duration: 500.ms, delay: 200.ms).slideY(begin: 0.1, end: 0),
+              )
+                  .animate()
+                  .fadeIn(duration: 500.ms, delay: 200.ms)
+                  .slideY(begin: 0.1, end: 0),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 28)),
 
-            // Recommended Exercises
+            // Popular Exercises — wired to provider
             SliverToBoxAdapter(
               child: SectionHeader(
                 title: 'Popular Exercises',
@@ -185,60 +218,51 @@ class HomeScreen extends StatelessWidget {
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 180,
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 5,
-                  separatorBuilder: (_, _) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final exercises = [
-                      ('Barbell Squat', 'Legs', Icons.fitness_center_rounded, AppColors.muscleLegs),
-                      ('Bench Press', 'Chest', Icons.fitness_center_rounded, AppColors.muscleChest),
-                      ('Deadlift', 'Back', Icons.fitness_center_rounded, AppColors.muscleBack),
-                      ('Shoulder Press', 'Shoulders', Icons.fitness_center_rounded, AppColors.muscleShoulders),
-                      ('Bicep Curl', 'Arms', Icons.fitness_center_rounded, AppColors.muscleArms),
-                    ];
-                    final (name, category, icon, color) = exercises[index];
-
-                    return GlassCard(
-                      onTap: () => context.push('/exercises/placeholder-$index'),
-                      padding: const EdgeInsets.all(16),
-                      child: SizedBox(
-                        width: 150,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(icon, color: color, size: 22),
-                            ),
-                            const Spacer(),
-                            Text(
-                              name,
-                              style: Theme.of(context).textTheme.titleMedium,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              category,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: color),
-                            ),
-                          ],
+                child: popularExercises.when(
+                  loading: () => ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 4,
+                    separatorBuilder: (_, _) => const SizedBox(width: 12),
+                    itemBuilder: (_, _) =>
+                        const ShimmerBox(width: 162, height: 180),
+                  ),
+                  error: (error, stackTrace) => const Center(
+                    child: Text('Could not load exercises'),
+                  ),
+                  data: (exercises) {
+                    // Show first 8 or all if fewer
+                    final displayList = exercises.take(8).toList();
+                    if (displayList.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No exercises available',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  color: AppColors.textTertiaryDark),
                         ),
-                      ),
+                      );
+                    }
+                    return ListView.separated(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 20),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: displayList.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(width: 12),
+                      itemBuilder: (context, index) {
+                        final exercise = displayList[index];
+                        return _PopularExerciseCard(exercise: exercise);
+                      },
                     );
                   },
                 ),
-              ).animate().fadeIn(duration: 500.ms, delay: 300.ms).slideY(begin: 0.1, end: 0),
+              )
+                  .animate()
+                  .fadeIn(duration: 500.ms, delay: 300.ms)
+                  .slideY(begin: 0.1, end: 0),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 28)),
@@ -272,7 +296,8 @@ class HomeScreen extends StatelessWidget {
                           children: [
                             Text(
                               'AI Coach',
-                              style: Theme.of(context).textTheme.titleLarge,
+                              style:
+                                  Theme.of(context).textTheme.titleLarge,
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -295,10 +320,73 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              ).animate().fadeIn(duration: 500.ms, delay: 400.ms).slideY(begin: 0.1, end: 0),
+              )
+                  .animate()
+                  .fadeIn(duration: 500.ms, delay: 400.ms)
+                  .slideY(begin: 0.1, end: 0),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 32)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card for the horizontal popular exercises carousel.
+class _PopularExerciseCard extends StatelessWidget {
+  final Exercise exercise;
+
+  const _PopularExerciseCard({required this.exercise});
+
+  Color get _categoryColor {
+    return switch (exercise.category.toLowerCase()) {
+      'chest' => AppColors.muscleChest,
+      'back' => AppColors.muscleBack,
+      'legs' => AppColors.muscleLegs,
+      'shoulders' => AppColors.muscleShoulders,
+      'arms' => AppColors.muscleArms,
+      'core' => AppColors.muscleCore,
+      _ => AppColors.primary,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      onTap: () => context.push('/exercises/${exercise.slug}'),
+      padding: const EdgeInsets.all(16),
+      child: SizedBox(
+        width: 150,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _categoryColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.fitness_center_rounded,
+                  color: _categoryColor, size: 22),
+            ),
+            const Spacer(),
+            Text(
+              exercise.name,
+              style: Theme.of(context).textTheme.titleMedium,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${exercise.category[0].toUpperCase()}${exercise.category.substring(1)}',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: _categoryColor),
+            ),
           ],
         ),
       ),

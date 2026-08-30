@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/widgets/common_widgets.dart';
-import 'package:go_router/go_router.dart';
+import '../../data/models/exercise.dart';
+import '../providers/exercise_providers.dart';
 
-class ExercisesScreen extends StatefulWidget {
+class ExercisesScreen extends ConsumerStatefulWidget {
   const ExercisesScreen({super.key});
 
   @override
-  State<ExercisesScreen> createState() => _ExercisesScreenState();
+  ConsumerState<ExercisesScreen> createState() => _ExercisesScreenState();
 }
 
-class _ExercisesScreenState extends State<ExercisesScreen> {
+class _ExercisesScreenState extends ConsumerState<ExercisesScreen> {
   String _selectedCategory = 'All';
   final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   static const _categories = [
     'All',
@@ -25,44 +29,21 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
     'Core',
   ];
 
-  static const _exercises = [
-    _ExerciseItem('Bench Press', 'Chest', 'Intermediate', 'Barbell', AppColors.muscleChest),
-    _ExerciseItem('Incline Bench Press', 'Chest', 'Intermediate', 'Barbell', AppColors.muscleChest),
-    _ExerciseItem('Push Up', 'Chest', 'Beginner', 'Bodyweight', AppColors.muscleChest),
-    _ExerciseItem('Dumbbell Fly', 'Chest', 'Intermediate', 'Dumbbells', AppColors.muscleChest),
-    _ExerciseItem('Deadlift', 'Back', 'Advanced', 'Barbell', AppColors.muscleBack),
-    _ExerciseItem('Lat Pulldown', 'Back', 'Beginner', 'Cable Machine', AppColors.muscleBack),
-    _ExerciseItem('Pull Up', 'Back', 'Intermediate', 'Pull-up Bar', AppColors.muscleBack),
-    _ExerciseItem('Barbell Row', 'Back', 'Intermediate', 'Barbell', AppColors.muscleBack),
-    _ExerciseItem('Squat', 'Legs', 'Intermediate', 'Barbell', AppColors.muscleLegs),
-    _ExerciseItem('Leg Press', 'Legs', 'Beginner', 'Machine', AppColors.muscleLegs),
-    _ExerciseItem('Lunges', 'Legs', 'Beginner', 'Bodyweight', AppColors.muscleLegs),
-    _ExerciseItem('Leg Extension', 'Legs', 'Beginner', 'Machine', AppColors.muscleLegs),
-    _ExerciseItem('Shoulder Press', 'Shoulders', 'Intermediate', 'Barbell', AppColors.muscleShoulders),
-    _ExerciseItem('Lateral Raise', 'Shoulders', 'Beginner', 'Dumbbells', AppColors.muscleShoulders),
-    _ExerciseItem('Front Raise', 'Shoulders', 'Beginner', 'Dumbbells', AppColors.muscleShoulders),
-    _ExerciseItem('Bicep Curl', 'Arms', 'Beginner', 'Dumbbells', AppColors.muscleArms),
-    _ExerciseItem('Hammer Curl', 'Arms', 'Beginner', 'Dumbbells', AppColors.muscleArms),
-    _ExerciseItem('Tricep Pushdown', 'Arms', 'Beginner', 'Cable Machine', AppColors.muscleArms),
-    _ExerciseItem('Skull Crusher', 'Arms', 'Intermediate', 'Barbell', AppColors.muscleArms),
-    _ExerciseItem('Crunch', 'Core', 'Beginner', 'Bodyweight', AppColors.muscleCore),
-    _ExerciseItem('Plank', 'Core', 'Beginner', 'Bodyweight', AppColors.muscleCore),
-  ];
+  /// Map category display names to database values.
+  static const _categoryDbMap = {
+    'All': null,
+    'Chest': 'chest',
+    'Back': 'back',
+    'Legs': 'legs',
+    'Shoulders': 'shoulders',
+    'Arms': 'arms',
+    'Core': 'core',
+  };
 
-  List<_ExerciseItem> get _filteredExercises {
-    var filtered = _exercises.toList();
-    if (_selectedCategory != 'All') {
-      filtered = filtered.where((e) => e.category == _selectedCategory).toList();
-    }
-    final query = _searchController.text.toLowerCase();
-    if (query.isNotEmpty) {
-      filtered = filtered.where((e) =>
-          e.name.toLowerCase().contains(query) ||
-          e.category.toLowerCase().contains(query) ||
-          e.equipment.toLowerCase().contains(query)).toList();
-    }
-    return filtered;
-  }
+  ExerciseFilterParams get _filterParams => ExerciseFilterParams(
+        category: _categoryDbMap[_selectedCategory],
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
 
   @override
   void dispose() {
@@ -72,6 +53,8 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final exercisesAsync = ref.watch(exerciseListProvider(_filterParams));
+
     return Scaffold(
       body: SafeArea(
         child: CustomScrollView(
@@ -93,7 +76,7 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: TextField(
                   controller: _searchController,
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
                     hintText: 'Search exercises...',
                     prefixIcon: const Icon(Icons.search_rounded, size: 22),
@@ -102,7 +85,7 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
                             icon: const Icon(Icons.clear_rounded, size: 20),
                             onPressed: () {
                               _searchController.clear();
-                              setState(() {});
+                              setState(() => _searchQuery = '');
                             },
                           )
                         : null,
@@ -134,35 +117,74 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-            // Results count
-            SliverToBoxAdapter(
-              child: Padding(
+            // Exercise list with data states
+            exercisesAsync.when(
+              loading: () => SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  '${_filteredExercises.length} exercises',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondaryDark,
-                      ),
+                sliver: SliverList.separated(
+                  itemCount: 6,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (_, _) => const ShimmerBox(height: 80),
                 ),
               ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-            // Exercise list
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverList.separated(
-                itemCount: _filteredExercises.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final exercise = _filteredExercises[index];
-                  return _ExerciseCard(exercise: exercise)
-                      .animate()
-                      .fadeIn(duration: 300.ms, delay: (index * 50).ms)
-                      .slideX(begin: 0.05, end: 0);
-                },
+              error: (error, stackTrace) => SliverToBoxAdapter(
+                child: const _EmptyState(
+                  icon: Icons.cloud_off_rounded,
+                  title: 'Connection Error',
+                  subtitle:
+                      'Could not load exercises.\nCheck your connection and try again.',
+                ),
               ),
+              data: (exercises) {
+                if (exercises.isEmpty) {
+                  return SliverToBoxAdapter(
+                    child: _EmptyState(
+                      icon: Icons.search_off_rounded,
+                      title: 'No exercises found',
+                      subtitle: _searchQuery.isNotEmpty
+                          ? 'Try a different search term'
+                          : 'No exercises in this category yet',
+                    ),
+                  );
+                }
+
+                return SliverMainAxisGroup(
+                  slivers: [
+                    // Results count
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          '${exercises.length} exercise${exercises.length != 1 ? 's' : ''}',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textSecondaryDark,
+                                  ),
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    // Exercise list
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      sliver: SliverList.separated(
+                        itemCount: exercises.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final exercise = exercises[index];
+                          return _ExerciseCard(exercise: exercise)
+                              .animate()
+                              .fadeIn(
+                                  duration: 300.ms,
+                                  delay: (index * 50).clamp(0, 500).ms)
+                              .slideX(begin: 0.05, end: 0);
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
@@ -173,28 +195,59 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
   }
 }
 
-class _ExerciseItem {
-  final String name;
-  final String category;
-  final String difficulty;
-  final String equipment;
-  final Color color;
+/// Color mapping for exercise categories.
+Color _categoryColor(String category) {
+  return switch (category.toLowerCase()) {
+    'chest' => AppColors.muscleChest,
+    'back' => AppColors.muscleBack,
+    'legs' => AppColors.muscleLegs,
+    'shoulders' => AppColors.muscleShoulders,
+    'arms' => AppColors.muscleArms,
+    'core' => AppColors.muscleCore,
+    _ => AppColors.primary,
+  };
+}
 
-  const _ExerciseItem(this.name, this.category, this.difficulty, this.equipment, this.color);
+/// Color mapping for difficulty levels.
+Color _difficultyColor(String difficulty) {
+  return switch (difficulty.toLowerCase()) {
+    'beginner' => AppColors.success,
+    'intermediate' => AppColors.warning,
+    'advanced' => AppColors.error,
+    _ => AppColors.textSecondaryDark,
+  };
+}
+
+/// Formats category string for display (e.g., 'chest' → 'Chest').
+String _capitalizeFirst(String s) {
+  if (s.isEmpty) return s;
+  return '${s[0].toUpperCase()}${s.substring(1)}';
 }
 
 class _ExerciseCard extends StatelessWidget {
-  final _ExerciseItem exercise;
+  final Exercise exercise;
 
   const _ExerciseCard({required this.exercise});
 
+  String get _primaryEquipment {
+    final primary =
+        exercise.equipment.where((e) => e.isPrimary).toList();
+    if (primary.isNotEmpty && primary.first.equipment != null) {
+      return primary.first.equipment!.name;
+    }
+    if (exercise.equipment.isNotEmpty &&
+        exercise.equipment.first.equipment != null) {
+      return exercise.equipment.first.equipment!.name;
+    }
+    return 'Bodyweight';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final color = _categoryColor(exercise.category);
+
     return GlassCard(
-      onTap: () {
-        final slug = exercise.name.toLowerCase().replaceAll(' ', '-');
-        context.push('/exercises/$slug');
-      },
+      onTap: () => context.push('/exercises/${exercise.slug}'),
       padding: const EdgeInsets.all(14),
       child: Row(
         children: [
@@ -203,12 +256,12 @@ class _ExerciseCard extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: exercise.color.withValues(alpha: 0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               Icons.fitness_center_rounded,
-              color: exercise.color,
+              color: color,
               size: 24,
             ),
           ),
@@ -225,15 +278,14 @@ class _ExerciseCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    _InfoTag(label: exercise.category, color: exercise.color),
+                    _InfoTag(
+                      label: _capitalizeFirst(exercise.category),
+                      color: color,
+                    ),
                     const SizedBox(width: 8),
                     _InfoTag(
-                      label: exercise.difficulty,
-                      color: exercise.difficulty == 'Beginner'
-                          ? AppColors.success
-                          : exercise.difficulty == 'Intermediate'
-                              ? AppColors.warning
-                              : AppColors.error,
+                      label: _capitalizeFirst(exercise.difficulty),
+                      color: _difficultyColor(exercise.difficulty),
                     ),
                   ],
                 ),
@@ -245,7 +297,7 @@ class _ExerciseCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                exercise.equipment,
+                _primaryEquipment,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.textTertiaryDark,
                     ),
@@ -284,6 +336,48 @@ class _InfoTag extends StatelessWidget {
               color: color,
               fontWeight: FontWeight.w600,
             ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 60),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 64, color: AppColors.textTertiaryDark),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: AppColors.textSecondaryDark,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textTertiaryDark,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }

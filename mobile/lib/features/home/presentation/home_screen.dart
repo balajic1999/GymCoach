@@ -89,7 +89,7 @@ class HomeScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GlassCard(
-                  onTap: () => context.go('/workouts'),
+                  onTap: () => context.push('/workouts/quick-start'),
                   padding: const EdgeInsets.all(20),
                   child: Row(
                     children: [

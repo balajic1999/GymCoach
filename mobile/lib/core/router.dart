@@ -7,6 +7,8 @@ import '../features/progress/presentation/screens/progress_screen.dart';
 import '../features/ai_coach/presentation/screens/ai_coach_screen.dart';
 import '../features/profile/presentation/screens/profile_screen.dart';
 import '../features/exercises/presentation/screens/exercise_detail_screen.dart';
+import '../features/workout/presentation/screens/create_workout_screen.dart';
+import '../features/workout/presentation/screens/active_workout_screen.dart';
 import 'widgets/app_shell.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -58,6 +60,26 @@ final router = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => ExerciseDetailScreen(
         exerciseId: state.pathParameters['id']!,
+      ),
+    ),
+    GoRoute(
+      path: '/workouts/create',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const CreateWorkoutScreen(),
+    ),
+    GoRoute(
+      path: '/workouts/active/:id',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => ActiveWorkoutScreen(
+        workoutId: state.pathParameters['id'],
+        workoutTitle: state.uri.queryParameters['title'] ?? 'Workout Session',
+      ),
+    ),
+    GoRoute(
+      path: '/workouts/quick-start',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const ActiveWorkoutScreen(
+        workoutTitle: 'Quick Start Workout',
       ),
     ),
     GoRoute(

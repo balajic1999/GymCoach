@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/widgets/common_widgets.dart';
 import '../../data/models/workout.dart';
@@ -35,13 +36,7 @@ class WorkoutsScreen extends ConsumerWidget {
                       child: IconButton(
                         icon: const Icon(Icons.add_rounded,
                             color: Colors.white),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text(
-                                    'Workout creation coming in Phase 6')),
-                          );
-                        },
+                        onPressed: () => context.push('/workouts/create'),
                       ),
                     ),
                   ],
@@ -185,7 +180,8 @@ class WorkoutsScreen extends ConsumerWidget {
                             child: GradientButton(
                               label: 'Create Workout',
                               icon: Icons.add_rounded,
-                              onPressed: () {},
+                              onPressed: () =>
+                                  context.push('/workouts/create'),
                             ),
                           ),
                         ],
@@ -227,7 +223,10 @@ class _WorkoutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassCard(
-      onTap: () {},
+      onTap: () {
+        final title = Uri.encodeComponent(workout.name);
+        context.push('/workouts/active/${workout.id}?title=$title');
+      },
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [

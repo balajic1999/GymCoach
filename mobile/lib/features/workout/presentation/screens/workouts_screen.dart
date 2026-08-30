@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/widgets/common_widgets.dart';
+import '../../../ai_coach/presentation/widgets/ai_workout_generator_sheet.dart';
 import '../../data/models/workout.dart';
 import '../providers/workout_providers.dart';
 
@@ -51,7 +52,14 @@ class WorkoutsScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: GlassCard(
-                  onTap: () {},
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (ctx) => const AiWorkoutGeneratorSheet(),
+                    );
+                  },
                   padding: const EdgeInsets.all(20),
                   child: Row(
                     children: [

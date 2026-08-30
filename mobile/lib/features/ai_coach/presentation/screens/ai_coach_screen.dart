@@ -1,58 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/colors.dart';
+import '../providers/ai_coach_providers.dart';
 
-class AiCoachScreen extends StatefulWidget {
+class AiCoachScreen extends ConsumerStatefulWidget {
   const AiCoachScreen({super.key});
 
   @override
-  State<AiCoachScreen> createState() => _AiCoachScreenState();
+  ConsumerState<AiCoachScreen> createState() => _AiCoachScreenState();
 }
 
-class _AiCoachScreenState extends State<AiCoachScreen> {
+class _AiCoachScreenState extends ConsumerState<AiCoachScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  final List<_ChatMessage> _messages = [
-    _ChatMessage(
-      role: 'assistant',
-      content: 'Hey! 👋 I\'m your AI fitness coach. I can help you with:\n\n'
-          '💪 Exercise explanations & form tips\n'
-          '🏋️ Personalized workout plans\n'
-          '🔄 Exercise substitutions\n'
-          '📈 Training advice & progression\n\n'
-          'What would you like to know?',
-    ),
-  ];
-
-  static const _suggestions = [
-    'How do I perform a squat correctly?',
-    'Create a beginner workout',
-    'What muscles does deadlift work?',
-    'How should I warm up?',
-  ];
-
-  void _sendMessage(String text) {
-    if (text.trim().isEmpty) return;
-    setState(() {
-      _messages.add(_ChatMessage(role: 'user', content: text.trim()));
-      _messageController.clear();
-      // Placeholder AI response — will be replaced with real AI in Phase 7
-      _messages.add(_ChatMessage(
-        role: 'assistant',
-        content: 'Thanks for your question! AI responses will be powered by '
-            'Gemini API in Phase 7. For now, I\'m a friendly placeholder. 🤖\n\n'
-            'Once connected, I\'ll provide personalized exercise explanations, '
-            'workout plans, and training advice based on your profile.',
-      ));
-    });
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    });
-  }
 
   @override
   void dispose() {
@@ -61,8 +22,31 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
     super.dispose();
   }
 
+  void _sendMessage(String text) {
+    if (text.trim().isEmpty) return;
+    ref.read(aiCoachStateProvider.notifier).sendMessage(text);
+    _messageController.clear();
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent + 80,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final aiState = ref.watch(aiCoachStateProvider);
+    final messages = aiState.messages;
+    final isGenerating = aiState.isGenerating;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -74,12 +58,25 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                 gradient: AppColors.gradientPrimary,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 10),
             const Text('AI Coach'),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Clear Chat',
+            onPressed: () {
+              ref.read(aiCoachStateProvider.notifier).clearChat();
+            },
+          ),
+        ],
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).pop(),
@@ -87,47 +84,69 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
       ),
       body: Column(
         children: [
-          // Messages
+          // Messages List
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              itemCount: _messages.length + (_messages.length <= 1 ? 1 : 0),
+              itemCount: messages.length + (isGenerating ? 1 : 0),
               itemBuilder: (context, index) {
-                // Show suggestion chips after welcome message
-                if (index == _messages.length && _messages.length <= 1) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _suggestions.map((s) {
-                        return ActionChip(
-                          label: Text(
-                            s,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppColors.primary,
-                                ),
-                          ),
-                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
-                          onPressed: () => _sendMessage(s),
-                        );
-                      }).toList(),
-                    ),
-                  ).animate().fadeIn(duration: 400.ms, delay: 300.ms);
+                // Typing Indicator
+                if (index == messages.length && isGenerating) {
+                  return const _TypingBubble()
+                      .animate()
+                      .fadeIn(duration: 200.ms);
                 }
 
-                final message = _messages[index];
-                return _ChatBubble(message: message)
-                    .animate()
-                    .fadeIn(duration: 300.ms)
-                    .slideY(begin: 0.1, end: 0);
+                final message = messages[index];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ChatBubble(message: message)
+                        .animate()
+                        .fadeIn(duration: 300.ms)
+                        .slideY(begin: 0.08, end: 0),
+
+                    // Suggestions Chips (under assistant message)
+                    if (message.role == 'assistant' &&
+                        message.suggestions.isNotEmpty &&
+                        index == messages.length - 1 &&
+                        !isGenerating)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 38, top: 8, bottom: 8),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: message.suggestions.map((s) {
+                            return ActionChip(
+                              label: Text(
+                                s,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              backgroundColor:
+                                  AppColors.primary.withValues(alpha: 0.1),
+                              side: BorderSide(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                              ),
+                              onPressed: () => _sendMessage(s),
+                            );
+                          }).toList(),
+                        ),
+                      ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                  ],
+                );
               },
             ),
           ),
 
-          // Input area
+          // Input Area
           Container(
             decoration: BoxDecoration(
               color: AppColors.surfaceDark,
@@ -148,21 +167,22 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.surfaceElevatedDark,
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.borderDark, width: 0.5),
+                      border:
+                          Border.all(color: AppColors.borderDark, width: 0.5),
                     ),
                     child: TextField(
                       controller: _messageController,
                       maxLines: 4,
                       minLines: 1,
                       textInputAction: TextInputAction.send,
-                      onSubmitted: _sendMessage,
-                      decoration: InputDecoration(
+                      onSubmitted: isGenerating ? null : _sendMessage,
+                      decoration: const InputDecoration(
                         hintText: 'Ask me anything about fitness...',
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
                         filled: false,
-                        contentPadding: const EdgeInsets.symmetric(
+                        contentPadding: EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 10,
                         ),
@@ -172,17 +192,22 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(
-                  onTap: () => _sendMessage(_messageController.text),
+                  onTap: isGenerating
+                      ? null
+                      : () => _sendMessage(_messageController.text),
                   child: Container(
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      gradient: AppColors.gradientPrimary,
+                      gradient: isGenerating
+                          ? null
+                          : AppColors.gradientPrimary,
+                      color: isGenerating ? AppColors.surfaceHighDark : null,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.send_rounded,
-                      color: Colors.white,
+                      color: isGenerating ? AppColors.textTertiaryDark : Colors.white,
                       size: 20,
                     ),
                   ),
@@ -196,15 +221,8 @@ class _AiCoachScreenState extends State<AiCoachScreen> {
   }
 }
 
-class _ChatMessage {
-  final String role;
-  final String content;
-
-  const _ChatMessage({required this.role, required this.content});
-}
-
 class _ChatBubble extends StatelessWidget {
-  final _ChatMessage message;
+  final ChatMessageItem message;
 
   const _ChatBubble({required this.message});
 
@@ -215,7 +233,8 @@ class _ChatBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
@@ -226,7 +245,11 @@ class _ChatBubble extends StatelessWidget {
                 gradient: AppColors.gradientPrimary,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 16),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
             ),
             const SizedBox(width: 8),
           ],
@@ -252,7 +275,9 @@ class _ChatBubble extends StatelessWidget {
               ),
               child: Text(
                 message.content,
-                style: Theme.of(context).textTheme.bodyMedium,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      height: 1.4,
+                    ),
               ),
             ),
           ),
@@ -260,5 +285,74 @@ class _ChatBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _TypingBubble extends StatelessWidget {
+  const _TypingBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              gradient: AppColors.gradientPrimary,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: Colors.white,
+              size: 16,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceElevatedDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.borderDark,
+                width: 0.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dot(0),
+                const SizedBox(width: 4),
+                _dot(200),
+                const SizedBox(width: 4),
+                _dot(400),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dot(int delayMs) {
+    return Container(
+      width: 6,
+      height: 6,
+      decoration: const BoxDecoration(
+        color: AppColors.accent,
+        shape: BoxShape.circle,
+      ),
+    )
+        .animate(onPlay: (c) => c.repeat(reverse: true))
+        .scale(
+          begin: const Offset(0.5, 0.5),
+          end: const Offset(1.2, 1.2),
+          duration: const Duration(milliseconds: 600),
+          delay: Duration(milliseconds: delayMs),
+        );
   }
 }

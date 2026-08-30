@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/colors.dart';
 import '../../../../core/widgets/common_widgets.dart';
 import '../providers/exercise_providers.dart';
+import '../widgets/exercise_3d_viewer.dart';
 
 class ExerciseDetailScreen extends ConsumerStatefulWidget {
   final String exerciseId;
@@ -16,7 +17,7 @@ class ExerciseDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
-  bool _isPlaying = false;
+  bool _isPlaying = true;
   double _playbackSpeed = 1.0;
 
   @override
@@ -88,17 +89,21 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
         return Scaffold(
           body: CustomScrollView(
             slivers: [
-              // 3D Viewer area (placeholder — will be flutter_3d_controller)
+              // 3D Model Viewer in SliverAppBar
               SliverAppBar(
-                expandedHeight: 360,
+                expandedHeight: 380,
                 pinned: true,
                 backgroundColor: AppColors.surfaceDark,
                 leading: IconButton(
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceDark.withValues(alpha: 0.7),
+                      color: AppColors.surfaceDark.withValues(alpha: 0.8),
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.borderDark,
+                        width: 0.5,
+                      ),
                     ),
                     child: const Icon(Icons.arrow_back_rounded, size: 20),
                   ),
@@ -109,8 +114,12 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
                     icon: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceDark.withValues(alpha: 0.7),
+                        color: AppColors.surfaceDark.withValues(alpha: 0.8),
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.borderDark,
+                          width: 0.5,
+                        ),
                       ),
                       child: Icon(
                         isFavorited
@@ -123,67 +132,62 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
                     onPressed: () =>
                         ref.read(favoritesProvider.notifier).toggle(exercise.id),
                   ),
+                  const SizedBox(width: 8),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    color: AppColors.surfaceDark,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 60),
-                        // 3D Model Placeholder
-                        Container(
-                          width: 200,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            gradient: RadialGradient(
-                              colors: [
-                                AppColors.primary.withValues(alpha: 0.15),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.view_in_ar_rounded,
-                            size: 80,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '3D Model — Phase 4',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.textTertiaryDark,
-                                  ),
-                        ),
-                      ],
-                    ),
+                  background: Exercise3DViewer(
+                    modelSrc: exercise.animationAssetUrl ??
+                        exercise.characterAssetUrl,
+                    exerciseName: exercise.name,
+                    category: exercise.category,
+                    muscles: exercise.muscles,
+                    height: 380,
+                    isPlaying: _isPlaying,
+                    playbackSpeed: _playbackSpeed,
+                    onPlayPauseToggle: () =>
+                        setState(() => _isPlaying = !_isPlaying),
+                    onSpeedChanged: (speed) =>
+                        setState(() => _playbackSpeed = speed),
                   ),
                 ),
               ),
 
-              // Playback Controls
+              // Playback Controls Bar
               SliverToBoxAdapter(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 12),
-                  color: AppColors.surfaceDark,
+                  decoration: const BoxDecoration(
+                    color: AppColors.surfaceDark,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: AppColors.borderDark,
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      // Replay / Reset
                       IconButton(
                         icon: const Icon(Icons.replay_rounded),
-                        onPressed: () {},
+                        tooltip: 'Reset Animation',
+                        onPressed: () {
+                          setState(() {
+                            _isPlaying = true;
+                          });
+                        },
                         color: AppColors.textSecondaryDark,
                       ),
-                      const SizedBox(width: 12),
+
+                      // Central Play/Pause Button
                       GestureDetector(
                         onTap: () =>
                             setState(() => _isPlaying = !_isPlaying),
                         child: Container(
-                          width: 52,
-                          height: 52,
+                          width: 50,
+                          height: 50,
                           decoration: BoxDecoration(
                             gradient: AppColors.gradientPrimary,
                             shape: BoxShape.circle,
@@ -191,7 +195,7 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
                               BoxShadow(
                                 color:
                                     AppColors.primary.withValues(alpha: 0.4),
-                                blurRadius: 16,
+                                blurRadius: 14,
                                 offset: const Offset(0, 4),
                               ),
                             ],
@@ -205,30 +209,50 @@ class _ExerciseDetailScreenState extends ConsumerState<ExerciseDetailScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+
+                      // Speed Selector
                       PopupMenuButton<double>(
+                        tooltip: 'Playback Speed',
                         icon: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: AppColors.surfaceHighDark,
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppColors.borderDark,
+                              width: 0.5,
+                            ),
                           ),
-                          child: Text(
-                            '${_playbackSpeed}x',
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
-                                ?.copyWith(color: AppColors.accent),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.speed_rounded,
+                                size: 14,
+                                color: AppColors.accent,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${_playbackSpeed}x',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
+                                    ?.copyWith(
+                                      color: AppColors.accent,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ],
                           ),
                         ),
                         onSelected: (speed) =>
                             setState(() => _playbackSpeed = speed),
                         itemBuilder: (context) => const [
-                          PopupMenuItem(value: 0.25, child: Text('0.25x')),
-                          PopupMenuItem(value: 0.5, child: Text('0.5x')),
-                          PopupMenuItem(value: 1.0, child: Text('1.0x')),
-                          PopupMenuItem(value: 1.5, child: Text('1.5x')),
+                          PopupMenuItem(value: 0.25, child: Text('0.25x Slow')),
+                          PopupMenuItem(value: 0.5, child: Text('0.5x Half')),
+                          PopupMenuItem(value: 1.0, child: Text('1.0x Normal')),
+                          PopupMenuItem(value: 1.5, child: Text('1.5x Fast')),
                         ],
                       ),
                     ],
